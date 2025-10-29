@@ -5,10 +5,18 @@ import { ValidationPipe } from '@nestjs/common';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   
+  // Разрешаем все origins для разработки
   app.enableCors({
-    origin: ['http://localhost:3001', 'http://localhost:3000'],
-    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
+    origin: [
+      'http://localhost:3001',
+      'http://192.168.100.8:3001',
+      'http://127.0.0.1:3001'
+    ],
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS', 'HEAD'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'Origin'],
     credentials: true,
+    preflightContinue: false,
+    optionsSuccessStatus: 204
   });
   
   app.useGlobalPipes(new ValidationPipe({
@@ -16,7 +24,7 @@ async function bootstrap() {
     transform: true,
   }));
   
-  const port = process.env.PORT || 3001; // Измените порт на 3001
+  const port = process.env.PORT || 3000;
   await app.listen(port);
   console.log(`🚀 Farm Management API запущен на http://localhost:${port}`);
 }
