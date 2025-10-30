@@ -36,6 +36,14 @@ export class CreateTreatmentDto {
   @IsOptional()
   isTankMix?: boolean;
 
+  @IsBoolean()
+  @IsOptional()
+  hasCompatibilityIssues?: boolean;
+
+  @IsString()
+  @IsOptional()
+  compatibilityWarnings?: string;
+
   @IsString()
   @IsOptional()
   notes?: string;

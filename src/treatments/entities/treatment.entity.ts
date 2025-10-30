@@ -24,6 +24,12 @@ export class Treatment {
   @Column({ default: false })
   isTankMix: boolean;
 
+  @Column({ default: false })
+  hasCompatibilityIssues: boolean;
+
+  @Column({ type: 'text', nullable: true })
+  compatibilityWarnings: string;
+
   @Column({ type: 'text', nullable: true })
   notes: string;
 

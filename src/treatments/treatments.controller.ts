@@ -39,4 +39,9 @@ export class TreatmentsController {
   markAsCompleted(@Param('id', ParseIntPipe) id: number) {
     return this.treatmentsService.markAsCompleted(id);
   }
+
+  @Get(':id/compatibility')
+  checkCompatibility(@Param('id', ParseIntPipe) id: number) {
+    return this.treatmentsService.checkCompatibility(id);
+  }
 }
