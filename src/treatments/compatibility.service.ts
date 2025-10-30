@@ -1,6 +1,41 @@
-// Создадим файл compatibility.service.ts
+// compatibility.service.ts
 import { Injectable } from '@nestjs/common';
-import { ChemicalProduct, ProductType, TankMixCompatibility, COMPATIBILITY_RULES } from '@/types';
+
+// Локальные типы
+export type ProductType = 
+  | 'гербицид' | 'инсектицид' | 'фунгицид' | 'десикант' 
+  | 'регулятор роста' | 'удобрение' | 'биопрепарат' | 'адъювант';
+
+export interface ChemicalProduct {
+  name: string;
+  dosage: string;
+  productType: string;
+}
+
+export interface CompatibilityRule {
+  productType1: ProductType;
+  productType2: ProductType;
+  compatible: boolean;
+  notes?: string;
+}
+
+export interface TankMixCompatibility {
+  isCompatible: boolean;
+  warnings: string[];
+  errors: string[];
+}
+
+export const COMPATIBILITY_RULES: CompatibilityRule[] = [
+  // Несовместимые комбинации
+  { productType1: 'гербицид', productType2: 'регулятор роста', compatible: false, notes: 'Может вызвать фитотоксичность' },
+  { productType1: 'фунгицид', productType2: 'биопрепарат', compatible: false, notes: 'Биопрепараты теряют эффективность' },
+  { productType1: 'инсектицид', productType2: 'биопрепарат', compatible: false, notes: 'Гибель полезных микроорганизмов' },
+  
+  // Совместимые комбинации
+  { productType1: 'фунгицид', productType2: 'инсектицид', compatible: true },
+  { productType1: 'гербицид', productType2: 'адъювант', compatible: true },
+  { productType1: 'удобрение', productType2: 'регулятор роста', compatible: true },
+];
 
 @Injectable()
 export class CompatibilityService {
@@ -23,11 +58,11 @@ export class CompatibilityService {
         const product2 = products[j];
         
         const compatibilityIssue = this.checkProductPairCompatibility(
-          product1.productType, 
-          product2.productType
+          product1.productType as ProductType, 
+          product2.productType as ProductType
         );
 
-        if (compatibilityIssue) {
+        if (compatibilityIssue && !compatibilityIssue.compatible) {
           result.isCompatible = false;
           result.errors.push(
             `Несовместимость: ${product1.productType} (${product1.name}) и ${product2.productType} (${product2.name}) - ${compatibilityIssue.notes}`
