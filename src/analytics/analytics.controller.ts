@@ -1,12 +1,20 @@
 import { Controller, Get, Query } from '@nestjs/common';
 import { AnalyticsService } from './analytics.service';
+import {
+  OverviewStats,
+  TreatmentAnalytics,
+  InventoryAnalytics,
+  VehiclesAnalytics,
+  CultureTimeline,
+  ProductUsageReport
+} from './types/analytics.types';
 
 @Controller('analytics')
 export class AnalyticsController {
   constructor(private readonly analyticsService: AnalyticsService) {}
 
   @Get('overview')
-  getOverview() {
+  getOverview(): Promise<OverviewStats> {
     return this.analyticsService.getOverviewStats();
   }
 
@@ -14,29 +22,29 @@ export class AnalyticsController {
   getTreatmentsAnalytics(
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string
-  ) {
+  ): Promise<TreatmentAnalytics> {
     const start = startDate ? new Date(startDate) : undefined;
     const end = endDate ? new Date(endDate) : undefined;
     return this.analyticsService.getTreatmentsAnalytics(start, end);
   }
 
   @Get('inventory')
-  getInventoryAnalytics() {
+  getInventoryAnalytics(): Promise<InventoryAnalytics> {
     return this.analyticsService.getInventoryAnalytics();
   }
 
   @Get('vehicles')
-  getVehiclesAnalytics() {
+  getVehiclesAnalytics(): Promise<VehiclesAnalytics> {
     return this.analyticsService.getVehiclesAnalytics();
   }
 
   @Get('culture-timeline')
-  getCultureTimeline(@Query('culture') culture: string) {
+  getCultureTimeline(@Query('culture') culture: string): Promise<CultureTimeline> {
     return this.analyticsService.getCultureTimeline(culture);
   }
 
   @Get('product-usage')
-  getProductUsageReport() {
+  getProductUsageReport(): Promise<ProductUsageReport[]> {
     return this.analyticsService.getProductUsageReport();
   }
 }

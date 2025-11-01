@@ -5,18 +5,14 @@ import { Treatment } from '../treatments/entities/treatment.entity';
 import { ProductInventory } from '../inventory/entities/product-inventory.entity';
 import { Vehicle } from '../vehicles/entities/vehicle.entity';
 import { MaintenanceRecord } from '../maintenance/entities/maintenance-record.entity';
-
-interface MonthlyStats {
-  treatments: number;
-  area: number;
-  completed: number;
-}
-
-interface CultureStats {
-  total: number;
-  completed: number;
-  area: number;
-}
+import {
+  OverviewStats,
+  TreatmentAnalytics,
+  InventoryAnalytics,
+  VehiclesAnalytics,
+  CultureTimeline,
+  ProductUsageReport
+} from './types/analytics.types';
 
 @Injectable()
 export class AnalyticsService {
@@ -32,7 +28,7 @@ export class AnalyticsService {
   ) {}
 
   // Общая статистика
-  async getOverviewStats() {
+  async getOverviewStats(): Promise<OverviewStats> {
     const [
       totalTreatments,
       completedTreatments,
@@ -69,7 +65,7 @@ export class AnalyticsService {
   }
 
   // Статистика по обработкам
-  async getTreatmentsAnalytics(startDate?: Date, endDate?: Date) {
+  async getTreatmentsAnalytics(startDate?: Date, endDate?: Date): Promise<TreatmentAnalytics> {
     const whereCondition: any = {};
     
     if (startDate && endDate) {
@@ -82,7 +78,7 @@ export class AnalyticsService {
     });
 
     // Статистика по культурам
-    const cultureStats: Record<string, CultureStats> = treatments.reduce((acc, treatment) => {
+    const cultureStats: Record<string, { total: number; completed: number; area: number }> = treatments.reduce((acc, treatment) => {
       const culture = treatment.culture;
       if (!acc[culture]) {
         acc[culture] = { total: 0, completed: 0, area: 0 };
@@ -93,7 +89,7 @@ export class AnalyticsService {
         acc[culture].completed++;
       }
       return acc;
-    }, {} as Record<string, CultureStats>);
+    }, {} as Record<string, { total: number; completed: number; area: number }>);
 
     // Статистика по типам препаратов
     const productTypeStats: Record<string, number> = treatments.reduce((acc, treatment) => {
@@ -108,7 +104,7 @@ export class AnalyticsService {
     }, {} as Record<string, number>);
 
     // Ежемесячная статистика
-    const monthlyStats: Record<string, MonthlyStats> = treatments.reduce((acc, treatment) => {
+    const monthlyStats: Record<string, { treatments: number; area: number; completed: number }> = treatments.reduce((acc, treatment) => {
       const month = treatment.dueDate.toISOString().substring(0, 7); // YYYY-MM
       if (!acc[month]) {
         acc[month] = { treatments: 0, area: 0, completed: 0 };
@@ -119,7 +115,7 @@ export class AnalyticsService {
         acc[month].completed++;
       }
       return acc;
-    }, {} as Record<string, MonthlyStats>);
+    }, {} as Record<string, { treatments: number; area: number; completed: number }>);
 
     return {
       total: treatments.length,
@@ -138,7 +134,7 @@ export class AnalyticsService {
   }
 
   // Аналитика склада
-  async getInventoryAnalytics() {
+  async getInventoryAnalytics(): Promise<InventoryAnalytics> {
     const inventory = await this.inventoryRepository.find();
     
     const typeStats = inventory.reduce((acc, product) => {
@@ -169,7 +165,7 @@ export class AnalyticsService {
   }
 
   // Аналитика техники
-  async getVehiclesAnalytics() {
+  async getVehiclesAnalytics(): Promise<VehiclesAnalytics> {
     const vehicles = await this.vehiclesRepository.find({
       relations: ['maintenanceRecords']
     });
@@ -218,7 +214,7 @@ export class AnalyticsService {
   }
 
   // Временная шкала обработок для культуры
-  async getCultureTimeline(culture: string) {
+  async getCultureTimeline(culture: string): Promise<CultureTimeline> {
     const treatments = await this.treatmentsRepository.find({
       where: { culture },
       relations: ['chemicalProducts'],
@@ -244,18 +240,12 @@ export class AnalyticsService {
   }
 
   // Отчет по использованию препаратов
-  async getProductUsageReport() {
+  async getProductUsageReport(): Promise<ProductUsageReport[]> {
     const treatments = await this.treatmentsRepository.find({
       relations: ['chemicalProducts']
     });
 
-    const productUsage: Record<string, {
-      name: string;
-      type: string;
-      usageCount: number;
-      cultures: Set<string>;
-      totalArea: number;
-    }> = treatments.reduce((acc, treatment) => {
+    const productUsage: Record<string, ProductUsageReport> = treatments.reduce((acc, treatment) => {
       treatment.chemicalProducts.forEach(product => {
         const key = `${product.name}-${product.productType}`;
         if (!acc[key]) {
@@ -263,22 +253,22 @@ export class AnalyticsService {
             name: product.name,
             type: product.productType,
             usageCount: 0,
-            cultures: new Set(),
+            cultures: [], // Теперь это массив строк
             totalArea: 0
           };
         }
         acc[key].usageCount++;
-        acc[key].cultures.add(treatment.culture);
+        
+        // Добавляем культуру в массив, если её там еще нет
+        if (!acc[key].cultures.includes(treatment.culture)) {
+          acc[key].cultures.push(treatment.culture);
+        }
+        
         acc[key].totalArea += treatment.area;
       });
       return acc;
-    }, {} as Record<string, any>);
+    }, {} as Record<string, ProductUsageReport>);
 
-    // Convert Set to Array
-    Object.values(productUsage).forEach((product: any) => {
-      product.cultures = Array.from(product.cultures);
-    });
-
-    return Object.values(productUsage).sort((a: any, b: any) => b.usageCount - a.usageCount);
+    return Object.values(productUsage).sort((a, b) => b.usageCount - a.usageCount);
   }
 }

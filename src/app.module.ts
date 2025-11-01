@@ -6,6 +6,7 @@ import { InventoryModule } from './inventory/inventory.module';
 import { VehiclesModule } from './vehicles/vehicles.module';
 import { MaintenanceModule } from './maintenance/maintenance.module';
 import { AnalyticsModule } from './analytics/analytics.module';
+import { EquipmentModule } from './equipment/equipment.module';
 
 @Module({
   imports: [
@@ -27,7 +28,8 @@ import { AnalyticsModule } from './analytics/analytics.module';
     InventoryModule,
     VehiclesModule,
     MaintenanceModule,
-    AnalyticsModule, // Добавляем Analytics модуль
+    AnalyticsModule,
+    EquipmentModule,
   ],
 })
 export class AppModule {}
