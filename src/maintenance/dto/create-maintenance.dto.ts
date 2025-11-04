@@ -1,25 +1,28 @@
-import { IsString, IsNumber, IsOptional, IsDate, IsInt } from 'class-validator';
-import { Type } from 'class-transformer';
+import { IsString, IsNumber, IsOptional, IsDateString, IsInt, IsNotEmpty } from 'class-validator';
 
 export class CreateMaintenanceDto {
   @IsInt()
+  @IsNotEmpty()
   vehicleId: number;
 
   @IsString()
+  @IsNotEmpty()
   vehicleName: string;
 
   @IsString()
+  @IsNotEmpty()
   type: string;
 
-  @IsDate()
-  @Type(() => Date)
-  date: Date;
+  @IsDateString()
+  @IsNotEmpty()
+  date: string; // Используем string для ISO даты
 
   @IsNumber()
   @IsOptional()
   hours?: number;
 
   @IsString()
+  @IsNotEmpty()
   description: string;
 
   @IsString()
