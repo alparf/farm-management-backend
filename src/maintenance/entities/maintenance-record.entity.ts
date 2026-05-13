@@ -1,5 +1,8 @@
+// src/maintenance/entities/maintenance-record.entity.ts
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, ManyToOne } from 'typeorm';
 import { Vehicle } from '../../vehicles/entities/vehicle.entity';
+
+export type MaintenanceType = 'Плановое ТО' | 'Внеплановый ремонт';
 
 @Entity('maintenance_records')
 export class MaintenanceRecord {
@@ -13,7 +16,7 @@ export class MaintenanceRecord {
   vehicleName: string;
 
   @Column({ type: 'varchar', length: 50 })
-  type: string;
+  type: MaintenanceType;
 
   @Column({ type: 'date' })
   date: Date;

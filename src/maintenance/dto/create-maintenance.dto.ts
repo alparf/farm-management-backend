@@ -1,4 +1,7 @@
+// src/maintenance/dto/create-maintenance.dto.ts
 import { IsString, IsNumber, IsOptional, IsDateString, IsInt, IsNotEmpty } from 'class-validator';
+
+export type MaintenanceType = 'Плановое ТО' | 'Внеплановый ремонт';
 
 export class CreateMaintenanceDto {
   @IsInt()
@@ -11,11 +14,11 @@ export class CreateMaintenanceDto {
 
   @IsString()
   @IsNotEmpty()
-  type: string;
+  type: MaintenanceType;
 
   @IsDateString()
   @IsNotEmpty()
-  date: string; // Используем string для ISO даты
+  date: string;
 
   @IsNumber()
   @IsOptional()

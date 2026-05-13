@@ -1,7 +1,8 @@
+// src/maintenance/maintenance.service.ts
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { MaintenanceRecord } from './entities/maintenance-record.entity';
+import { MaintenanceRecord, MaintenanceType } from './entities/maintenance-record.entity';
 import { CreateMaintenanceDto } from './dto/create-maintenance.dto';
 import { UpdateMaintenanceDto } from './dto/update-maintenance.dto';
 
@@ -33,13 +34,47 @@ export class MaintenanceService {
   }
 
   async create(createMaintenanceDto: CreateMaintenanceDto): Promise<MaintenanceRecord> {
-    const record = this.maintenanceRepository.create(createMaintenanceDto);
+    // Преобразуем строку даты в объект Date
+    const recordData = {
+      vehicleId: createMaintenanceDto.vehicleId,
+      vehicleName: createMaintenanceDto.vehicleName,
+      type: createMaintenanceDto.type as MaintenanceType,
+      date: new Date(createMaintenanceDto.date),
+      hours: createMaintenanceDto.hours,
+      description: createMaintenanceDto.description,
+      notes: createMaintenanceDto.notes,
+    };
+    
+    const record = this.maintenanceRepository.create(recordData);
     return await this.maintenanceRepository.save(record);
   }
 
   async update(id: number, updateMaintenanceDto: UpdateMaintenanceDto): Promise<MaintenanceRecord> {
     const record = await this.findOne(id);
-    Object.assign(record, updateMaintenanceDto);
+    
+    // Обновляем только переданные поля, преобразуя дату если нужно
+    if (updateMaintenanceDto.date) {
+      record.date = new Date(updateMaintenanceDto.date);
+    }
+    if (updateMaintenanceDto.vehicleId !== undefined) {
+      record.vehicleId = updateMaintenanceDto.vehicleId;
+    }
+    if (updateMaintenanceDto.vehicleName !== undefined) {
+      record.vehicleName = updateMaintenanceDto.vehicleName;
+    }
+    if (updateMaintenanceDto.type !== undefined) {
+      record.type = updateMaintenanceDto.type as MaintenanceType;
+    }
+    if (updateMaintenanceDto.hours !== undefined) {
+      record.hours = updateMaintenanceDto.hours;
+    }
+    if (updateMaintenanceDto.description !== undefined) {
+      record.description = updateMaintenanceDto.description;
+    }
+    if (updateMaintenanceDto.notes !== undefined) {
+      record.notes = updateMaintenanceDto.notes;
+    }
+    
     return await this.maintenanceRepository.save(record);
   }
 
@@ -60,7 +95,7 @@ export class MaintenanceService {
 
   async findByType(type: string): Promise<MaintenanceRecord[]> {
     return this.maintenanceRepository.find({
-      where: { type },
+      where: { type: type as MaintenanceType },
       relations: ['vehicle'],
       order: { date: 'DESC' }
     });
@@ -73,11 +108,17 @@ export class MaintenanceService {
   }> {
     const totalRecords = await this.maintenanceRepository.count();
     
-    const byType = await this.maintenanceRepository
+    const byTypeRaw = await this.maintenanceRepository
       .createQueryBuilder('maintenance')
-      .select('maintenance.type, COUNT(*) as count')
+      .select('maintenance.type', 'type')
+      .addSelect('COUNT(*)', 'count')
       .groupBy('maintenance.type')
       .getRawMany();
+
+    const byType: Record<string, number> = {};
+    byTypeRaw.forEach(item => {
+      byType[item.type] = parseInt(item.count);
+    });
 
     const recentMaintenance = await this.maintenanceRepository.find({
       relations: ['vehicle'],
@@ -87,10 +128,7 @@ export class MaintenanceService {
 
     return {
       totalRecords,
-      byType: byType.reduce((acc, item) => {
-        acc[item.type] = parseInt(item.count);
-        return acc;
-      }, {}),
+      byType,
       recentMaintenance
     };
   }

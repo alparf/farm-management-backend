@@ -1,7 +1,11 @@
+// src/maintenance/maintenance.controller.ts
 import { Controller, Get, Post, Body, Patch, Param, Delete, ParseIntPipe } from '@nestjs/common';
 import { MaintenanceService } from './maintenance.service';
 import { CreateMaintenanceDto } from './dto/create-maintenance.dto';
 import { UpdateMaintenanceDto } from './dto/update-maintenance.dto';
+
+// Определяем тип локально или импортируем
+type MaintenanceType = 'Плановое ТО' | 'Внеплановый ремонт';
 
 @Controller('maintenance')
 export class MaintenanceController {
@@ -29,6 +33,7 @@ export class MaintenanceController {
 
   @Get('type/:type')
   findByType(@Param('type') type: string) {
+    // Исправлено: передаем строку как есть, сервис сам приведет к нужному типу
     return this.maintenanceService.findByType(type);
   }
 
