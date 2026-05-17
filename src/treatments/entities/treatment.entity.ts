@@ -1,3 +1,4 @@
+// src/treatments/entities/treatment.entity.ts
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, OneToMany } from 'typeorm';
 import { TreatmentProduct } from './treatment-product.entity';
 
@@ -13,13 +14,13 @@ export class Treatment {
   area: number;
 
   @Column({ default: false })
-  completed: boolean;
+  completed: boolean;  // ✅ ОСТАВЛЯЕМ
 
   @Column({ type: 'date', nullable: true })
   dueDate: Date;
 
   @Column({ type: 'date', nullable: true })
-  actualDate: Date;
+  actualDate: Date;  // ✅ ОСТАВЛЯЕМ
 
   @Column({ default: false })
   isTankMix: boolean;

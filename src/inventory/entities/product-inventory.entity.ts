@@ -11,9 +11,6 @@ export class ProductInventory {
   @Column({ type: 'varchar', length: 50 })
   type: string;
 
-  @Column({ type: 'decimal', precision: 10, scale: 3 })
-  quantity: number;
-
   @Column({ type: 'varchar', length: 20 })
   unit: string;
 

@@ -1,35 +1,36 @@
 // src/analytics/types/analytics.types.ts
+
 export interface CultureStats {
   total: number;
-  completed: number;
+  planned: number;
   area: number;
 }
 
 export interface MonthlyStats {
   treatments: number;
   area: number;
-  completed: number;
+  planned: number;
 }
 
 export interface TreatmentAnalytics {
   total: number;
   totalArea: number;
-  completionRate: number;
+  plannedRate: number;
   cultureStats: Record<string, CultureStats>;
   productTypeStats: Record<string, number>;
   monthlyStats: {
     month: string;
     treatments: number;
     area: number;
-    completed: number;
+    planned: number;
   }[];
 }
 
 export interface OverviewStats {
   treatments: {
     total: number;
-    completed: number;
-    completionRate: number;
+    planned: number;
+    plannedRate: number;
   };
   inventory: {
     total: number;
@@ -75,11 +76,10 @@ export interface CultureTimeline {
     date: Date;
     type: string;
     products: string[];
-    completed: boolean;
     area: number;
   }[];
   totalTreatments: number;
-  completedTreatments: number;
+  plannedTreatments: number;
   totalArea: number;
 }
 

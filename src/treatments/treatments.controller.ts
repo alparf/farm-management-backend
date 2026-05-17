@@ -1,3 +1,4 @@
+// src/treatments/treatments.controller.ts
 import { Controller, Get, Post, Body, Patch, Param, Delete, ParseIntPipe } from '@nestjs/common';
 import { TreatmentsService } from './treatments.service';
 import { CreateTreatmentDto } from './dto/create-treatment.dto';
@@ -30,14 +31,19 @@ export class TreatmentsController {
     return this.treatmentsService.update(id, updateTreatmentDto);
   }
 
-  @Delete(':id')
-  remove(@Param('id', ParseIntPipe) id: number) {
-    return this.treatmentsService.remove(id);
-  }
-
   @Patch(':id/complete')
   markAsCompleted(@Param('id', ParseIntPipe) id: number) {
     return this.treatmentsService.markAsCompleted(id);
+  }
+
+  @Patch(':id/uncomplete')
+  unmarkAsCompleted(@Param('id', ParseIntPipe) id: number) {
+    return this.treatmentsService.unmarkAsCompleted(id);
+  }
+
+  @Delete(':id')
+  remove(@Param('id', ParseIntPipe) id: number) {
+    return this.treatmentsService.remove(id);
   }
 
   @Get(':id/compatibility')

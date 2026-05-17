@@ -1,23 +1,28 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne } from 'typeorm';
+// src/treatments/entities/treatment-product.entity.ts
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn } from 'typeorm';
 import { Treatment } from './treatment.entity';
+import { ProductInventory } from '../../inventory/entities/product-inventory.entity';
 
 @Entity('treatment_products')
 export class TreatmentProduct {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({ type: 'varchar', length: 200 })
-  name: string;
+  @ManyToOne(() => ProductInventory, { eager: true })
+  @JoinColumn({ name: 'productId' })
+  product: ProductInventory;
 
-  @Column({ type: 'varchar', length: 100 })
-  dosage: string;
+  @Column()
+  productId: number;
 
-  @Column({ type: 'varchar', length: 50 })
-  productType: string;
+  @Column({ type: 'decimal', precision: 10, scale: 2 })
+  ratePerHa: number;
 
-  @ManyToOne(() => Treatment, treatment => treatment.chemicalProducts, { 
-    onDelete: 'CASCADE' 
-  })
+  @Column({ type: 'varchar', length: 10, default: 'л/га' })
+  unit: string;
+
+  @ManyToOne(() => Treatment, treatment => treatment.chemicalProducts, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'treatmentId' })
   treatment: Treatment;
 
   @Column()

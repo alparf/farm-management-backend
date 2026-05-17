@@ -1,16 +1,16 @@
-// compatibility.service.ts
 import { Injectable } from '@nestjs/common';
 
-// Локальные типы
+export interface ChemicalProduct {
+  productId: number;  // ← ID, но для совместимости он не нужен, только тип
+  ratePerHa: number;  // ← норма, но для совместимости не используется
+  // Добавляем поля, которые реально нужны для проверки совместимости
+  name?: string;
+  productType: string;
+}
+
 export type ProductType = 
   | 'гербицид' | 'инсектицид' | 'фунгицид' | 'десикант' 
   | 'регулятор роста' | 'удобрение' | 'биопрепарат' | 'адъювант';
-
-export interface ChemicalProduct {
-  name: string;
-  dosage: string;
-  productType: string;
-}
 
 export interface CompatibilityRule {
   productType1: ProductType;
@@ -26,12 +26,9 @@ export interface TankMixCompatibility {
 }
 
 export const COMPATIBILITY_RULES: CompatibilityRule[] = [
-  // Несовместимые комбинации
   { productType1: 'гербицид', productType2: 'регулятор роста', compatible: false, notes: 'Может вызвать фитотоксичность' },
   { productType1: 'фунгицид', productType2: 'биопрепарат', compatible: false, notes: 'Биопрепараты теряют эффективность' },
   { productType1: 'инсектицид', productType2: 'биопрепарат', compatible: false, notes: 'Гибель полезных микроорганизмов' },
-  
-  // Совместимые комбинации
   { productType1: 'фунгицид', productType2: 'инсектицид', compatible: true },
   { productType1: 'гербицид', productType2: 'адъювант', compatible: true },
   { productType1: 'удобрение', productType2: 'регулятор роста', compatible: true },
@@ -51,7 +48,6 @@ export class CompatibilityService {
       return result;
     }
 
-    // Проверяем все возможные пары продуктов
     for (let i = 0; i < products.length; i++) {
       for (let j = i + 1; j < products.length; j++) {
         const product1 = products[i];
@@ -65,13 +61,12 @@ export class CompatibilityService {
         if (compatibilityIssue && !compatibilityIssue.compatible) {
           result.isCompatible = false;
           result.errors.push(
-            `Несовместимость: ${product1.productType} (${product1.name}) и ${product2.productType} (${product2.name}) - ${compatibilityIssue.notes}`
+            `Несовместимость: ${product1.productType} и ${product2.productType} - ${compatibilityIssue.notes}`
           );
         }
       }
     }
 
-    // Дополнительные проверки
     this.checkSpecialCases(products, result);
 
     return result;
@@ -87,13 +82,11 @@ export class CompatibilityService {
   private checkSpecialCases(products: ChemicalProduct[], result: TankMixCompatibility): void {
     const productTypes = products.map(p => p.productType);
     
-    // Проверка на количество разных типов
     const uniqueTypes = new Set(productTypes);
     if (uniqueTypes.size > 3) {
       result.warnings.push('Слишком много разных типов препаратов в смеси - возможна нестабильность');
     }
 
-    // Проверка на наличие биопрепаратов с химией
     const hasBiologics = productTypes.includes('биопрепарат');
     const hasChemicals = productTypes.some(type => 
       ['гербицид', 'инсектицид', 'фунгицид'].includes(type)

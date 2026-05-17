@@ -1,15 +1,18 @@
-import { IsString, IsNumber, IsBoolean, IsOptional, IsArray, ValidateNested, IsDate } from 'class-validator';
+// src/treatments/dto/create-treatment.dto.ts
+import { IsString, IsNumber, IsBoolean, IsOptional, IsArray, ValidateNested, IsDate, Min, IsIn } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class ChemicalProductDto {
-  @IsString()
-  name: string;
+  @IsNumber()
+  productId: number;
+
+  @IsNumber()
+  @Min(0)
+  ratePerHa: number;
 
   @IsString()
-  dosage: string;
-
-  @IsString()
-  productType: string;
+  @IsIn(['л/га', 'кг/га'])
+  unit: string = 'л/га';
 }
 
 export class CreateTreatmentDto {
@@ -17,20 +20,12 @@ export class CreateTreatmentDto {
   culture: string;
 
   @IsNumber()
+  @Min(0.01)
   area: number;
-
-  @IsBoolean()
-  @IsOptional()
-  completed?: boolean;
 
   @IsDate()
   @Type(() => Date)
   dueDate: Date;
-
-  @IsDate()
-  @Type(() => Date)
-  @IsOptional()
-  actualDate?: Date;
 
   @IsBoolean()
   @IsOptional()

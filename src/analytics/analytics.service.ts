@@ -1,8 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Between } from 'typeorm';
+import { Repository, Between, MoreThanOrEqual, LessThan } from 'typeorm';
 import { Treatment } from '../treatments/entities/treatment.entity';
+import { TreatmentProduct } from '../treatments/entities/treatment-product.entity';
 import { ProductInventory } from '../inventory/entities/product-inventory.entity';
+import { InventoryTransaction } from '../inventory/entities/inventory-transaction.entity';
 import { Vehicle } from '../vehicles/entities/vehicle.entity';
 import { MaintenanceRecord } from '../maintenance/entities/maintenance-record.entity';
 import {
@@ -19,37 +21,60 @@ export class AnalyticsService {
   constructor(
     @InjectRepository(Treatment)
     private treatmentsRepository: Repository<Treatment>,
+    @InjectRepository(TreatmentProduct)
+    private treatmentProductRepository: Repository<TreatmentProduct>,
     @InjectRepository(ProductInventory)
     private inventoryRepository: Repository<ProductInventory>,
+    @InjectRepository(InventoryTransaction)
+    private transactionRepository: Repository<InventoryTransaction>,
     @InjectRepository(Vehicle)
     private vehiclesRepository: Repository<Vehicle>,
     @InjectRepository(MaintenanceRecord)
     private maintenanceRepository: Repository<MaintenanceRecord>,
   ) {}
 
-  // Общая статистика
+  private async getCurrentBalance(productId: number): Promise<number> {
+    const lastTransaction = await this.transactionRepository.findOne({
+      where: { productId },
+      order: { createdAt: 'DESC' },
+    });
+    return lastTransaction?.balanceAfter ?? 0;
+  }
+
   async getOverviewStats(): Promise<OverviewStats> {
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+    
     const [
       totalTreatments,
-      completedTreatments,
+      plannedTreatments,
       totalInventoryItems,
-      lowStockItems,
       totalVehicles,
       totalMaintenanceRecords
     ] = await Promise.all([
       this.treatmentsRepository.count(),
-      this.treatmentsRepository.count({ where: { completed: true } }),
+      this.treatmentsRepository.count({ 
+        where: { dueDate: MoreThanOrEqual(now) }
+      }),
       this.inventoryRepository.count(),
-      this.inventoryRepository.count({ where: { quantity: 5 } }),
       this.vehiclesRepository.count(),
       this.maintenanceRepository.count()
     ]);
 
+    const products = await this.inventoryRepository.find();
+    let lowStockItems = 0;
+    for (const product of products) {
+      const balance = await this.getCurrentBalance(product.id);
+      if (balance <= 5 && balance > 0) {
+        lowStockItems++;
+      }
+    }
+
     return {
       treatments: {
         total: totalTreatments,
-        completed: completedTreatments,
-        completionRate: totalTreatments > 0 ? (completedTreatments / totalTreatments) * 100 : 0
+        planned: plannedTreatments,
+        plannedRate: totalTreatments > 0 ? (plannedTreatments / totalTreatments) * 100 : 0
       },
       inventory: {
         total: totalInventoryItems,
@@ -64,7 +89,6 @@ export class AnalyticsService {
     };
   }
 
-  // Статистика по обработкам
   async getTreatmentsAnalytics(startDate?: Date, endDate?: Date): Promise<TreatmentAnalytics> {
     const whereCondition: any = {};
     
@@ -74,86 +98,104 @@ export class AnalyticsService {
 
     const treatments = await this.treatmentsRepository.find({
       where: whereCondition,
-      relations: ['chemicalProducts']
+      relations: ['chemicalProducts', 'chemicalProducts.product']
     });
 
-    // Статистика по культурам
-    const cultureStats: Record<string, { total: number; completed: number; area: number }> = treatments.reduce((acc, treatment) => {
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+
+    const cultureStats: Record<string, { total: number; planned: number; area: number }> = {};
+    for (const treatment of treatments) {
       const culture = treatment.culture;
-      if (!acc[culture]) {
-        acc[culture] = { total: 0, completed: 0, area: 0 };
+      if (!cultureStats[culture]) {
+        cultureStats[culture] = { total: 0, planned: 0, area: 0 };
       }
-      acc[culture].total++;
-      acc[culture].area += treatment.area;
-      if (treatment.completed) {
-        acc[culture].completed++;
+      cultureStats[culture].total++;
+      cultureStats[culture].area += treatment.area;
+      
+      // Проверяем, запланирована ли обработка (dueDate в будущем или сегодня)
+      if (treatment.dueDate && treatment.dueDate >= now) {
+        cultureStats[culture].planned++;
       }
-      return acc;
-    }, {} as Record<string, { total: number; completed: number; area: number }>);
+    }
 
-    // Статистика по типам препаратов
-    const productTypeStats: Record<string, number> = treatments.reduce((acc, treatment) => {
-      treatment.chemicalProducts.forEach(product => {
-        const type = product.productType;
-        if (!acc[type]) {
-          acc[type] = 0;
+    const productTypeStats: Record<string, number> = {};
+    for (const treatment of treatments) {
+      for (const product of treatment.chemicalProducts) {
+        const type = product.product?.type || 'unknown';
+        productTypeStats[type] = (productTypeStats[type] || 0) + 1;
+      }
+    }
+
+    const monthlyStats: Record<string, { treatments: number; area: number; planned: number }> = {};
+    for (const treatment of treatments) {
+      if (treatment.dueDate) {
+        const month = treatment.dueDate.toISOString().substring(0, 7);
+        if (!monthlyStats[month]) {
+          monthlyStats[month] = { treatments: 0, area: 0, planned: 0 };
         }
-        acc[type]++;
-      });
-      return acc;
-    }, {} as Record<string, number>);
+        monthlyStats[month].treatments++;
+        monthlyStats[month].area += treatment.area;
+        
+        if (treatment.dueDate >= now) {
+          monthlyStats[month].planned++;
+        }
+      }
+    }
 
-    // Ежемесячная статистика
-    const monthlyStats: Record<string, { treatments: number; area: number; completed: number }> = treatments.reduce((acc, treatment) => {
-      const month = treatment.dueDate.toISOString().substring(0, 7); // YYYY-MM
-      if (!acc[month]) {
-        acc[month] = { treatments: 0, area: 0, completed: 0 };
-      }
-      acc[month].treatments++;
-      acc[month].area += treatment.area;
-      if (treatment.completed) {
-        acc[month].completed++;
-      }
-      return acc;
-    }, {} as Record<string, { treatments: number; area: number; completed: number }>);
+    const totalTreatments = treatments.length;
+    const plannedTreatments = treatments.filter(t => t.dueDate && t.dueDate >= now).length;
 
     return {
-      total: treatments.length,
+      total: totalTreatments,
       totalArea: treatments.reduce((sum, t) => sum + t.area, 0),
-      completionRate: treatments.length > 0 ? 
-        (treatments.filter(t => t.completed).length / treatments.length) * 100 : 0,
+      plannedRate: totalTreatments > 0 ? (plannedTreatments / totalTreatments) * 100 : 0,
       cultureStats,
       productTypeStats,
       monthlyStats: Object.entries(monthlyStats).map(([month, stats]) => ({
         month,
         treatments: stats.treatments,
         area: stats.area,
-        completed: stats.completed
+        planned: stats.planned
       })).sort((a, b) => a.month.localeCompare(b.month))
     };
   }
 
-  // Аналитика склада
   async getInventoryAnalytics(): Promise<InventoryAnalytics> {
     const inventory = await this.inventoryRepository.find();
     
-    const typeStats = inventory.reduce((acc, product) => {
+    const typeStats: Record<string, { count: number; totalQuantity: number; items: any[] }> = {};
+    
+    for (const product of inventory) {
       const type = product.type;
-      if (!acc[type]) {
-        acc[type] = { count: 0, totalQuantity: 0, items: [] };
+      const balance = await this.getCurrentBalance(product.id);
+      
+      if (!typeStats[type]) {
+        typeStats[type] = { count: 0, totalQuantity: 0, items: [] };
       }
-      acc[type].count++;
-      acc[type].totalQuantity += product.quantity;
-      acc[type].items.push(product);
-      return acc;
-    }, {} as Record<string, { count: number; totalQuantity: number; items: ProductInventory[] }>);
+      typeStats[type].count++;
+      typeStats[type].totalQuantity += balance;
+      typeStats[type].items.push({
+        ...product,
+        currentBalance: balance
+      });
+    }
 
-    const lowStock = inventory.filter(product => product.quantity <= 5);
-    const outOfStock = inventory.filter(product => product.quantity === 0);
+    const lowStock: any[] = [];
+    const outOfStock: any[] = [];
+    
+    for (const product of inventory) {
+      const balance = await this.getCurrentBalance(product.id);
+      if (balance <= 5 && balance > 0) {
+        lowStock.push({ ...product, currentBalance: balance });
+      } else if (balance === 0) {
+        outOfStock.push({ ...product, currentBalance: balance });
+      }
+    }
 
     return {
       totalItems: inventory.length,
-      totalValue: inventory.reduce((sum, product) => sum + product.quantity, 0),
+      totalValue: 0,
       typeStats,
       alerts: {
         lowStock: lowStock.length,
@@ -164,20 +206,16 @@ export class AnalyticsService {
     };
   }
 
-  // Аналитика техники
   async getVehiclesAnalytics(): Promise<VehiclesAnalytics> {
     const vehicles = await this.vehiclesRepository.find({
       relations: ['maintenanceRecords']
     });
 
-    const typeStats: Record<string, number> = vehicles.reduce((acc, vehicle) => {
+    const typeStats: Record<string, number> = {};
+    for (const vehicle of vehicles) {
       const type = vehicle.type;
-      if (!acc[type]) {
-        acc[type] = 0;
-      }
-      acc[type]++;
-      return acc;
-    }, {} as Record<string, number>);
+      typeStats[type] = (typeStats[type] || 0) + 1;
+    }
 
     const now = new Date();
     const thirtyDaysFromNow = new Date();
@@ -213,61 +251,69 @@ export class AnalyticsService {
     };
   }
 
-  // Временная шкала обработок для культуры
   async getCultureTimeline(culture: string): Promise<CultureTimeline> {
     const treatments = await this.treatmentsRepository.find({
       where: { culture },
-      relations: ['chemicalProducts'],
+      relations: ['chemicalProducts', 'chemicalProducts.product'],
       order: { dueDate: 'ASC' }
     });
 
-    const timelineData = treatments.map(treatment => ({
-      id: treatment.id,
-      date: treatment.dueDate,
-      type: treatment.chemicalProducts[0]?.productType || 'unknown',
-      products: treatment.chemicalProducts.map(p => p.name),
-      completed: treatment.completed,
-      area: treatment.area
-    }));
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+
+    const timelineData = treatments
+      .filter(treatment => treatment.dueDate) // Только обработки с датой
+      .map(treatment => ({
+        id: treatment.id,
+        date: treatment.dueDate,
+        type: treatment.chemicalProducts[0]?.product?.type || 'unknown',
+        products: treatment.chemicalProducts.map(p => p.product?.name || 'unknown'),
+        area: treatment.area
+      }));
+
+    const plannedTreatments = treatments.filter(t => t.dueDate && t.dueDate >= now).length;
 
     return {
       culture,
       treatments: timelineData,
       totalTreatments: treatments.length,
-      completedTreatments: treatments.filter(t => t.completed).length,
+      plannedTreatments,
       totalArea: treatments.reduce((sum, t) => sum + t.area, 0)
     };
   }
 
-  // Отчет по использованию препаратов
   async getProductUsageReport(): Promise<ProductUsageReport[]> {
     const treatments = await this.treatmentsRepository.find({
-      relations: ['chemicalProducts']
+      relations: ['chemicalProducts', 'chemicalProducts.product']
     });
 
-    const productUsage: Record<string, ProductUsageReport> = treatments.reduce((acc, treatment) => {
-      treatment.chemicalProducts.forEach(product => {
-        const key = `${product.name}-${product.productType}`;
-        if (!acc[key]) {
-          acc[key] = {
-            name: product.name,
-            type: product.productType,
+    const productUsage: Record<string, ProductUsageReport> = {};
+
+    for (const treatment of treatments) {
+      for (const product of treatment.chemicalProducts) {
+        const productName = product.product?.name || 'unknown';
+        const productType = product.product?.type || 'unknown';
+        const key = `${productName}-${productType}`;
+        
+        if (!productUsage[key]) {
+          productUsage[key] = {
+            name: productName,
+            type: productType,
             usageCount: 0,
-            cultures: [], // Теперь это массив строк
+            cultures: [],
             totalArea: 0
           };
         }
-        acc[key].usageCount++;
         
-        // Добавляем культуру в массив, если её там еще нет
-        if (!acc[key].cultures.includes(treatment.culture)) {
-          acc[key].cultures.push(treatment.culture);
+        productUsage[key].usageCount++;
+        
+        if (!productUsage[key].cultures.includes(treatment.culture)) {
+          productUsage[key].cultures.push(treatment.culture);
         }
         
-        acc[key].totalArea += treatment.area;
-      });
-      return acc;
-    }, {} as Record<string, ProductUsageReport>);
+        productUsage[key].totalArea += treatment.area;
+      }
+    }
 
     return Object.values(productUsage).sort((a, b) => b.usageCount - a.usageCount);
   }
