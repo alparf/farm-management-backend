@@ -20,7 +20,10 @@ export class Shipment {
   @Column({ type: 'text', nullable: true })
   notes: string;
 
-  @OneToMany(() => ShipmentItem, item => item.shipment, { cascade: true, eager: true })
+  @OneToMany(() => ShipmentItem, item => item.shipment, { 
+    cascade: true,   // ✅ каскад для операций сохранения/удаления
+    eager: true,     // ✅ автоматическая загрузка позиций при find
+  })
   items: ShipmentItem[];
 
   @CreateDateColumn()

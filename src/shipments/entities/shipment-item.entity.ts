@@ -7,7 +7,9 @@ export class ShipmentItem {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @ManyToOne(() => Shipment, shipment => shipment.items, { onDelete: 'CASCADE' })
+  @ManyToOne(() => Shipment, shipment => shipment.items, { 
+    onDelete: 'CASCADE',   // ✅ каскад на уровне БД (дополнительная гарантия)
+  })
   @JoinColumn({ name: 'shipmentId' })
   shipment: Shipment;
 
