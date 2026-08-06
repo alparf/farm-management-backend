@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, InternalServerErrorException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Shipment } from './entities/shipment.entity';
@@ -25,63 +25,83 @@ export class ShipmentsService {
   async findOne(id: number): Promise<Shipment> {
     const shipment = await this.shipmentsRepository.findOne({
       where: { id },
-      relations: ['client', 'items', 'items.product'], // явно загружаем связи
+      relations: ['client', 'items', 'items.product'],
     });
     if (!shipment) throw new NotFoundException(`Shipment with ID ${id} not found`);
     return shipment;
   }
 
   async create(createShipmentDto: CreateShipmentDto): Promise<Shipment> {
-    const shipment = this.shipmentsRepository.create({
-      clientId: createShipmentDto.clientId,
-      date: createShipmentDto.date,
-      notes: createShipmentDto.notes,
-    });
-    const savedShipment = await this.shipmentsRepository.save(shipment);
+    try {
+      const shipment = this.shipmentsRepository.create({
+        clientId: createShipmentDto.clientId,
+        date: createShipmentDto.date,
+        notes: createShipmentDto.notes,
+      });
+      const savedShipment = await this.shipmentsRepository.save(shipment);
 
-    const items = createShipmentDto.items.map(itemDto =>
-      this.shipmentItemsRepository.create({
-        ...itemDto,
-        shipmentId: savedShipment.id,
-      })
-    );
-    await this.shipmentItemsRepository.save(items);
-
-    return this.findOne(savedShipment.id);
-  }
-
-  async update(id: number, updateShipmentDto: UpdateShipmentDto): Promise<Shipment> {
-    const shipment = await this.findOne(id);
-
-    if (updateShipmentDto.clientId !== undefined) shipment.clientId = updateShipmentDto.clientId;
-    if (updateShipmentDto.date !== undefined) shipment.date = updateShipmentDto.date;
-    if (updateShipmentDto.notes !== undefined) shipment.notes = updateShipmentDto.notes;
-
-    if (updateShipmentDto.items) {
-      // Удаляем старые позиции
-      await this.shipmentItemsRepository.delete({ shipmentId: id });
-
-      // Создаём новые
-      const newItems = updateShipmentDto.items.map(itemDto =>
+      const items = createShipmentDto.items.map(itemDto =>
         this.shipmentItemsRepository.create({
           ...itemDto,
-          shipmentId: id,
+          shipmentId: savedShipment.id,
         })
       );
-      await this.shipmentItemsRepository.save(newItems);
-    }
+      await this.shipmentItemsRepository.save(items);
 
-    await this.shipmentsRepository.save(shipment);
-    return this.findOne(id);
+      return this.findOne(savedShipment.id);
+    } catch (error) {
+      console.error('Error in create:', error);
+      throw new InternalServerErrorException('Failed to create shipment');
+    }
   }
 
-  // ✅ ИСПРАВЛЕННЫЙ МЕТОД УДАЛЕНИЯ (Вариант 3)
-  async remove(id: number): Promise<void> {
-    // Загружаем отгрузку со всеми связями (включая позиции)
-    const shipment = await this.findOne(id);
-    if (!shipment) throw new NotFoundException(`Shipment with ID ${id} not found`);
+  async update(id: number, updateShipmentDto: UpdateShipmentDto): Promise<Shipment | { success: boolean; id: number }> {
+    try {
+      const shipment = await this.shipmentsRepository.findOne({
+        where: { id },
+      });
+      if (!shipment) throw new NotFoundException(`Shipment with ID ${id} not found`);
 
-    // Удаляем через TypeORM remove – каскады сработают благодаря cascade: true
-    await this.shipmentsRepository.remove(shipment);
+      if (updateShipmentDto.clientId !== undefined) shipment.clientId = updateShipmentDto.clientId;
+      if (updateShipmentDto.date !== undefined) shipment.date = updateShipmentDto.date;
+      if (updateShipmentDto.notes !== undefined) shipment.notes = updateShipmentDto.notes;
+
+      await this.shipmentsRepository.save(shipment);
+
+      if (updateShipmentDto.items) {
+        // Удаляем старые
+        await this.shipmentItemsRepository.delete({ shipmentId: id });
+
+        // Создаём новые
+        const newItems = updateShipmentDto.items.map(itemDto =>
+          this.shipmentItemsRepository.create({
+            ...itemDto,
+            shipmentId: id,
+          })
+        );
+        await this.shipmentItemsRepository.save(newItems);
+      }
+
+      try {
+        return await this.findOne(id);
+      } catch (findError) {
+        console.error('Error loading updated shipment:', findError);
+        return { success: true, id };
+      }
+    } catch (error) {
+      console.error('Error in update:', error);
+      throw new InternalServerErrorException('Failed to update shipment');
+    }
+  }
+
+  async remove(id: number): Promise<void> {
+    try {
+      const shipment = await this.findOne(id);
+      if (!shipment) throw new NotFoundException(`Shipment with ID ${id} not found`);
+      await this.shipmentsRepository.remove(shipment);
+    } catch (error) {
+      console.error(`Error in remove(${id}):`, error);
+      throw error;
+    }
   }
 }
