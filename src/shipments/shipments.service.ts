@@ -14,7 +14,7 @@ export class ShipmentsService {
     @InjectRepository(ShipmentItem)
     private shipmentItemsRepository: Repository<ShipmentItem>,
   ) {}
-
+  
   async findAll(): Promise<Shipment[]> {
     return this.shipmentsRepository.find({
       relations: ['client', 'items', 'items.product'],
